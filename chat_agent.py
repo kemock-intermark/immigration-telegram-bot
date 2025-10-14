@@ -217,24 +217,45 @@ class KnowledgeAgent:
         
         return final_results
     
-    def extract_relevant_content(self, doc: Dict, query: str, context_size: int = 300) -> List[str]:
+    def extract_relevant_content(self, doc: Dict, query: str, context_size: int = 500) -> List[str]:
         """Извлечь релевантные фрагменты из документа"""
         body = doc.get('body', '')
-        query_lower = query.lower()
+        title = doc.get('title', '')
+        summary = doc.get('summary', '')
         body_lower = body.lower()
         
         excerpts = []
         
-        # Ищем все вхождения запроса
-        position = 0
-        while True:
-            index = body_lower.find(query_lower, position)
-            if index == -1:
-                break
-            
+        # Получаем ключевые слова из запроса
+        query_variants = self.normalize_query(query)
+        keywords = []
+        for variant in query_variants:
+            keywords.extend(variant.split())
+        keywords = [k for k in set(keywords) if len(k) > 2]  # Убираем короткие слова
+        
+        # Если это документ с заголовком и суммари - всегда включаем их
+        if title and summary:
+            header = f"# {title}\n\n## Содержание презентации\n\n{summary[:500]}"
+            excerpts.append(header)
+        
+        # Ищем фрагменты по ключевым словам
+        found_positions = []
+        for keyword in keywords[:5]:  # Берём топ-5 ключевых слов
+            position = 0
+            while True:
+                index = body_lower.find(keyword, position)
+                if index == -1:
+                    break
+                found_positions.append(index)
+                position = index + 1
+        
+        # Сортируем позиции и извлекаем фрагменты
+        found_positions = sorted(set(found_positions))[:3]  # Максимум 3 фрагмента
+        
+        for index in found_positions:
             # Извлекаем контекст вокруг найденного фрагмента
             start = max(0, index - context_size)
-            end = min(len(body), index + len(query) + context_size)
+            end = min(len(body), index + context_size)
             
             excerpt = body[start:end].strip()
             
