@@ -184,8 +184,9 @@ class KnowledgeAgent:
     
     def search_documents(self, query: str, limit: int = 5) -> List[Tuple[Dict, float]]:
         """Поиск релевантных документов по запросу (с кэшированием)"""
-        # Создаём ключ кэша
-        cache_key = f"{query.lower().strip()}_{self.kb_version}_{limit}"
+        # Создаём ключ кэша (с версией алгоритма поиска)
+        SEARCH_ALGO_VERSION = "v2.1_country_cases"  # Меняем при обновлении логики поиска
+        cache_key = f"{query.lower().strip()}_{self.kb_version}_{limit}_{SEARCH_ALGO_VERSION}"
         
         # Проверяем кэш
         if cache_key in self.search_cache:
