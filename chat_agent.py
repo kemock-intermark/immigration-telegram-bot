@@ -185,7 +185,7 @@ class KnowledgeAgent:
     def search_documents(self, query: str, limit: int = 5) -> List[Tuple[Dict, float]]:
         """Поиск релевантных документов по запросу (с кэшированием)"""
         # Создаём ключ кэша (с версией алгоритма поиска)
-        SEARCH_ALGO_VERSION = "v2.1_country_cases"  # Меняем при обновлении логики поиска
+        SEARCH_ALGO_VERSION = "v2.3_golden_visa_full_body"  # Меняем при обновлении логики поиска
         cache_key = f"{query.lower().strip()}_{self.kb_version}_{limit}_{SEARCH_ALGO_VERSION}"
         
         # Проверяем кэш
@@ -242,6 +242,18 @@ class KnowledgeAgent:
             if country_in_query:
                 if country_in_query in category_lower or country_in_query in title_lower:
                     score += 500  # Огромный приоритет!
+            
+            # СПЕЦИАЛЬНАЯ ЛОГИКА: Golden Visa - это точная программа, не обычный residence permit
+            if 'golden' in query_lower or 'голден' in query_lower or 'золот' in query_lower:
+                if 'golden' in title_lower or 'golden' in subcategory.lower():
+                    score += 600  # ОГРОМНЫЙ буст для Golden Visa программ
+                elif 'golden' in body_lower:
+                    score += 500  # Если Golden упоминается в теле - тоже буст
+                elif 'investment' in subcategory or 'инвести' in subcategory or 'investment' in title_lower:
+                    score += 300  # Residence permit by investment = часто Golden Visa
+                else:
+                    # Если в запросе Golden Visa, а в документе её нет вообще - штраф
+                    score -= 400
             
             # Точное совпадение фразы - высокий приоритет
             for variant in query_variants:
