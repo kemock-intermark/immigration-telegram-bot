@@ -50,6 +50,11 @@ class TextNormalizer:
             r'доминик\w+': 'dominica',
             r'антигуа': 'antigua',
             r'барбуд\w+': 'barbuda',
+            r'карибск\w+': 'caribbean',
+            r'сент[\s\-]киттс': 'saint kitts',
+            r'сент[\s\-]китс': 'saint kitts',
+            r'сент[\s\-]люси\w+': 'saint lucia',
+            r'сент[\s\-]лючи\w+': 'saint lucia',
             
             # Программы иммиграции
             r'гражданств\w+': 'citizenship',
