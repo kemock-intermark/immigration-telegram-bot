@@ -8,11 +8,20 @@ import sys
 import re
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 from collections import defaultdict
 from datetime import datetime
 from functools import lru_cache
+
+# LLM для генерации ответов
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
+    print("⚠️  Groq не установлен. Ответы будут без LLM обработки.")
 
 
 class KnowledgeAgent:
@@ -23,6 +32,17 @@ class KnowledgeAgent:
         self.unanswered_log_path = self.knowledge_dir / "_unanswered_log.md"
         self.search_cache = {}  # Простой кэш для результатов поиска
         self.kb_version = None
+        
+        # Инициализация Groq клиента
+        self.groq_client = None
+        if GROQ_AVAILABLE:
+            groq_api_key = os.getenv('GROQ_API_KEY')
+            if groq_api_key:
+                try:
+                    self.groq_client = Groq(api_key=groq_api_key)
+                except Exception as e:
+                    print(f"⚠️  Не удалось инициализировать Groq: {e}")
+        
         self.load_knowledge_base()
         
     def extract_metadata_and_content(self, md_path: Path) -> Dict:
@@ -446,6 +466,55 @@ class KnowledgeAgent:
             # Бесшумно игнорируем ошибки логирования
             pass
     
+    def generate_llm_answer(self, query: str, context: str, sources: List[str]) -> str:
+        """Генерировать ответ с помощью LLM на основе найденного контекста"""
+        if not self.groq_client:
+            return None  # Fallback к обычному формату
+        
+        try:
+            system_prompt = """Ты - консультант по программам иммиграции и получения гражданства.
+
+ВАЖНЫЕ ПРАВИЛА:
+1. Отвечай ТОЛЬКО на основе предоставленного контекста
+2. Если информации нет в контексте - честно скажи "нет в материалах"
+3. Всегда указывай конкретные цифры, суммы, сроки из материалов
+4. Форматируй ответ структурированно с заголовками и списками
+5. Отвечай на том же языке, что и вопрос (русский или английский)
+6. Не придумывай информацию - только факты из контекста
+
+Твоя задача - дать понятный, структурированный ответ на вопрос пользователя."""
+
+            user_prompt = f"""ВОПРОС ПОЛЬЗОВАТЕЛЯ:
+{query}
+
+КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ:
+{context}
+
+Дай развёрнутый структурированный ответ на вопрос на основе этого контекста. Если информации недостаточно - скажи об этом."""
+
+            response = self.groq_client.chat.completions.create(
+                model="llama-3.1-70b-versatile",  # Бесплатная модель Groq
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3,  # Низкая температура для точности
+                max_tokens=1500,
+            )
+            
+            llm_answer = response.choices[0].message.content
+            
+            # Добавляем источники в конец
+            final_answer = llm_answer + "\n\n---\n\n**Источники:**\n"
+            for source in sources:
+                final_answer += f"- {source}\n"
+            
+            return final_answer
+            
+        except Exception as e:
+            print(f"⚠️  Ошибка LLM: {e}")
+            return None  # Fallback к обычному формату
+    
     def format_answer(self, query: str, results: List[Tuple[Dict, float]]) -> str:
         """Форматировать ответ на основе найденных документов"""
         if not results:
@@ -482,7 +551,14 @@ class KnowledgeAgent:
             if source_line not in sources:
                 sources.append(source_line)
         
-        # Формируем финальный ответ
+        # Пробуем сгенерировать ответ с помощью LLM
+        if self.groq_client and answer_parts:
+            context = "\n\n---\n\n".join(answer_parts[:5])  # Топ-5 фрагментов как контекст
+            llm_answer = self.generate_llm_answer(query, context, sources)
+            if llm_answer:
+                return "\n\n## Ответ\n\n" + llm_answer
+        
+        # Fallback: обычный формат без LLM
         answer = "\n\n## Ответ\n\n"
         
         if answer_parts:
