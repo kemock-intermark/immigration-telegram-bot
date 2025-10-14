@@ -493,7 +493,7 @@ class KnowledgeAgent:
 Дай развёрнутый структурированный ответ на вопрос на основе этого контекста. Если информации недостаточно - скажи об этом."""
 
             response = self.groq_client.chat.completions.create(
-                model="llama-3.1-70b-versatile",  # Бесплатная модель Groq
+                model="llama-3.3-70b-versatile",  # Актуальная бесплатная модель Groq
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
