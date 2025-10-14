@@ -237,70 +237,51 @@ class KnowledgeAgent:
         
         return final_results
     
-    def extract_relevant_content(self, doc: Dict, query: str, context_size: int = 500) -> List[str]:
+    def extract_relevant_content(self, doc: Dict, query: str, context_size: int = 1000) -> List[str]:
         """Извлечь релевантные фрагменты из документа"""
         body = doc.get('body', '')
         title = doc.get('title', '')
         summary = doc.get('summary', '')
-        body_lower = body.lower()
         
         excerpts = []
         
-        # Получаем ключевые слова из запроса
-        query_variants = self.normalize_query(query)
-        keywords = []
-        for variant in query_variants:
-            keywords.extend(variant.split())
-        keywords = [k for k in set(keywords) if len(k) > 2]  # Убираем короткие слова
+        # Для топовых документов берём весь контент (или большую часть)
+        # Это даст LLM достаточно информации для полного ответа
         
-        # Если это документ с заголовком и суммари - всегда включаем их
-        if title and summary:
-            header = f"# {title}\n\n## Содержание презентации\n\n{summary[:500]}"
+        # Всегда включаем заголовок
+        if title:
+            header = f"# {title}\n\n"
+            if summary:
+                header += f"**Краткое описание:** {summary}\n\n"
             excerpts.append(header)
         
-        # Ищем фрагменты по ключевым словам
-        found_positions = []
-        for keyword in keywords[:5]:  # Берём топ-5 ключевых слов
-            position = 0
-            while True:
-                index = body_lower.find(keyword, position)
-                if index == -1:
-                    break
-                found_positions.append(index)
-                position = index + 1
-        
-        # Сортируем позиции и извлекаем фрагменты
-        found_positions = sorted(set(found_positions))[:3]  # Максимум 3 фрагмента
-        
-        for index in found_positions:
-            # Извлекаем контекст вокруг найденного фрагмента
-            start = max(0, index - context_size)
-            end = min(len(body), index + context_size)
+        # Берём весь body документа, разбивая на части по 2000 символов
+        # Это даст LLM полный контекст
+        if body:
+            # Разбиваем на части по слайдам
+            slides = body.split('--- Слайд')
             
-            excerpt = body[start:end].strip()
+            # Берём первые 10 слайдов (обычно там основная информация)
+            relevant_slides = []
+            for i, slide in enumerate(slides[:15]):  # Увеличено до 15 слайдов
+                if slide.strip():
+                    if i > 0:
+                        relevant_slides.append('--- Слайд' + slide)
+                    else:
+                        relevant_slides.append(slide)
             
-            # Находим начало предложения
-            if start > 0:
-                sentence_start = excerpt.find('. ')
-                if sentence_start != -1:
-                    excerpt = excerpt[sentence_start + 2:]
+            if relevant_slides:
+                body_excerpt = '\n'.join(relevant_slides)
+                # Обрезаем если слишком длинно (макс 6000 символов)
+                if len(body_excerpt) > 6000:
+                    body_excerpt = body_excerpt[:6000] + "\n\n[...документ продолжается...]"
+                excerpts.append(body_excerpt)
             
-            # Находим конец предложения
-            sentence_end = excerpt.rfind('. ')
-            if sentence_end != -1 and sentence_end < len(excerpt) - 10:
-                excerpt = excerpt[:sentence_end + 1]
-            
-            excerpts.append(excerpt)
-            position = index + 1
+            else:
+                # Fallback: просто берём начало документа
+                excerpts.append(body[:3000])
         
-        # Если точных совпадений нет, берём начало документа
-        if not excerpts:
-            lines = [l for l in body.split('\n') if l.strip() and not l.startswith('---')]
-            if lines:
-                excerpt = ' '.join(lines[:5])[:500]
-                excerpts.append(excerpt)
-        
-        return excerpts[:3]  # Максимум 3 фрагмента
+        return excerpts if excerpts else [summary or title or "Нет содержимого"]
     
     def get_knowledge_base_version(self) -> str:
         """Получить версию базы знаний из индекса"""
