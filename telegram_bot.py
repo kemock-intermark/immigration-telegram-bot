@@ -13,6 +13,9 @@ from datetime import datetime
 # Импортируем наш существующий агент
 from chat_agent import KnowledgeAgent
 
+# Импортируем логгер вопросов
+from question_logger import get_logger
+
 # Для Telegram бота нужна библиотека python-telegram-bot
 try:
     from telegram import Update
@@ -33,6 +36,9 @@ logger = logging.getLogger(__name__)
 # Инициализация агента знаний
 KNOWLEDGE_DIR = Path(__file__).parent / "knowledge"
 agent = KnowledgeAgent(str(KNOWLEDGE_DIR))
+
+# Инициализация логгера вопросов
+question_logger = get_logger(str(KNOWLEDGE_DIR))
 
 # Статистика использования
 usage_stats = {
@@ -154,6 +160,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Формирование ответа
         answer = agent.format_answer(question, results)
+        
+        # Логируем вопрос с информацией о результате
+        answer_found = len(results) > 0 and "не знаю — нет в материалах" not in answer.lower()
+        question_logger.log_question(
+            user_id=user.id,
+            username=user.username,
+            question=question,
+            answer_found=answer_found,
+            response_length=len(answer)
+        )
         
         # Telegram имеет лимит 4096 символов на сообщение
         # Разбиваем длинные ответы
