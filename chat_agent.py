@@ -197,6 +197,35 @@ class KnowledgeAgent:
         # Получаем варианты запроса с синонимами
         query_variants = self.normalize_query(query)
         
+        # Список стран для приоритизации (с учетом разных падежей)
+        countries = {
+            'portugal': ['portugal', 'португал'],  # португалия, португалии, португалию
+            'malta': ['malta', 'мальт'],  # мальта, мальты, мальте
+            'greece': ['greece', 'греци'],  # греция, греции, грецию
+            'turkey': ['turkey', 'турци'],  # турция, турции, турцию
+            'grenada': ['grenada', 'гренад'],  # гренада, гренады, гренаде
+            'vanuatu': ['vanuatu', 'вануату'],  # не склоняется
+            'antigua': ['antigua', 'антигуа'],  # не склоняется
+            'dominica': ['dominica', 'доминик'],  # доминика, доминики
+            'st lucia': ['st lucia', 'сент-люси', 'сент люси'],
+            'st kitts': ['st kitts', 'сент-китс', 'сент китс'],
+            'caribbean': ['caribbean', 'кариб'],  # карибы, карибских
+            'cyprus': ['cyprus', 'кипр'],  # кипр, кипра
+            'spain': ['spain', 'испани'],  # испания, испании
+            'paraguay': ['paraguay', 'парагва'],  # парагвай, парагвая
+            'sao tome': ['sao tome', 'сан-томе', 'сан томе']
+        }
+        
+        # Проверяем есть ли название страны в запросе
+        country_in_query = None
+        for country_key, country_variants in countries.items():
+            for variant in country_variants:
+                if variant in query_lower:
+                    country_in_query = country_key
+                    break
+            if country_in_query:
+                break
+        
         results = []
         
         for doc in self.documents:
@@ -207,6 +236,11 @@ class KnowledgeAgent:
             
             # Вычисляем релевантность
             score = 0
+            
+            # КРИТИЧЕСКИ ВАЖНО: Если в запросе есть страна - даём огромный буст документам этой страны
+            if country_in_query:
+                if country_in_query in category_lower or country_in_query in title_lower:
+                    score += 500  # Огромный приоритет!
             
             # Точное совпадение фразы - высокий приоритет
             for variant in query_variants:
