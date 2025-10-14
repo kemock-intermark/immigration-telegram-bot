@@ -107,6 +107,7 @@ class KnowledgeAgentV3:
         self.normalizer = TextNormalizer()
         self.bm25 = None
         self.tokenized_corpus = []
+        self.kb_version = None
         
         # LLM клиент
         self.groq_client = None
@@ -123,6 +124,20 @@ class KnowledgeAgentV3:
     def load_knowledge_base(self):
         """Загрузить базу знаний"""
         print("📚 Загрузка базы знаний...")
+        
+        # Загружаем версию из manifest если есть
+        manifest_path = self.knowledge_dir / 'manifest.json'
+        if manifest_path.exists():
+            try:
+                with open(manifest_path, 'r', encoding='utf-8') as f:
+                    manifest = json.load(f)
+                    self.kb_version = manifest.get('version', 'unknown')
+                    print(f"📦 Версия базы: {self.kb_version}")
+            except Exception as e:
+                print(f"⚠️  Ошибка загрузки manifest: {e}")
+                self.kb_version = 'unknown'
+        else:
+            self.kb_version = 'unknown'
         
         # Загружаем все .md файлы кроме служебных
         md_files = []
