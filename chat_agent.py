@@ -35,48 +35,66 @@ class TextNormalizer:
     """Нормализация текста для лучшего поиска"""
     
     def __init__(self):
-        # Словарь для приведения к нормальной форме (лемматизация lite)
-        self.replacements = {
-            # Падежи стран (окончания)
-            r'португали\w+': 'portugal',
-            r'греци\w+': 'greece',
-            r'турци\w+': 'turkey',
-            r'гренад\w+': 'grenada',
-            r'мальт\w+': 'malta',
-            r'кипр\w*': 'cyprus',
-            r'испани\w+': 'spain',
-            r'парагва\w+': 'paraguay',
-            r'вануату': 'vanuatu',
-            r'доминик\w+': 'dominica',
-            r'антигуа': 'antigua',
-            r'барбуд\w+': 'barbuda',
-            r'карибск\w+': 'caribbean',
-            r'сент[\s\-]киттс': 'saint kitts',
-            r'сент[\s\-]китс': 'saint kitts',
-            r'сент[\s\-]люси\w+': 'saint lucia',
-            r'сент[\s\-]лючи\w+': 'saint lucia',
+        # Двунаправленный словарь переводов: RU ↔ EN
+        # Это позволяет искать на любом языке
+        self.translations = {
+            # Страны (корень слова для русского → английский)
+            'portugal': ['португал', 'portugal'],
+            'greece': ['грец', 'греч', 'греческ', 'greece'],
+            'turkey': ['турц', 'турец', 'турецк', 'turkey'],
+            'grenada': ['гренад', 'grenada'],
+            'malta': ['мальт', 'malta'],
+            'cyprus': ['кипр', 'cyprus'],
+            'spain': ['испан', 'spain'],
+            'paraguay': ['парагва', 'paraguay'],
+            'vanuatu': ['вануату', 'vanuatu'],
+            'dominica': ['доминик', 'dominica'],
+            'antigua': ['антигуа', 'antigua'],
+            'barbuda': ['барбуд', 'barbuda'],
+            'caribbean': ['карибск', 'caribbean'],
+            'saint kitts': ['сент киттс', 'сент китс', 'saint kitts', 'st kitts'],
+            'saint lucia': ['сент люси', 'сент лючи', 'saint lucia', 'st lucia'],
+            'france': ['франц', 'france'],
+            'germany': ['герман', 'germany', 'deutschland'],
+            'italy': ['итал', 'italy'],
+            'austria': ['австр', 'austria'],
+            'hungary': ['венгр', 'hungary'],
+            'bulgaria': ['болгар', 'bulgaria'],
+            'serbia': ['серб', 'serbia'],
+            'montenegro': ['черногор', 'montenegro'],
+            'latvia': ['латв', 'latvia'],
+            'slovenia': ['словен', 'slovenia'],
+            'luxembourg': ['люксембург', 'luxembourg'],
+            'canada': ['канад', 'canada'],
+            'usa': ['сша', 'usa', 'америк'],
+            'uk': ['великобритан', 'британ', 'uk', 'united kingdom'],
+            'egypt': ['египт', 'egypt'],
+            'nauru': ['науру', 'nauru'],
+            'sao tome': ['сан том', 'sao tome'],
             
             # Программы иммиграции
-            r'гражданств\w+': 'citizenship',
-            r'паспорт\w*': 'passport',
-            r'виз\w+': 'visa',
-            r'внж': 'residence_permit',
-            r'вид\s+на\s+жительств\w*': 'residence_permit',
-            r'постоянн\w+\s+проживан\w+': 'permanent_residence',
-            r'пмж': 'permanent_residence',
-            r'инвестиц\w+': 'investment',
-            r'голден\w*': 'golden',
-            r'золот\w+': 'golden',
+            'citizenship': ['гражданств', 'citizenship', 'паспорт', 'passport'],
+            'residence permit': ['внж', 'вид на жительств', 'residence permit', 'виз', 'visa'],
+            'permanent residence': ['пмж', 'постоянн проживан', 'permanent residence'],
+            'golden visa': ['золот виз', 'голден виз', 'golden visa'],
+            'investment': ['инвестиц', 'investment'],
+            'digital nomad': ['цифров кочевник', 'digital nomad'],
+            'startup': ['стартап', 'startup'],
+            'business': ['бизнес', 'business'],
             
-            # Глаголы
-            r'получ\w+': 'get',
-            r'оформ\w+': 'apply',
-            r'требован\w+': 'requirements',
-            r'услов\w+': 'conditions',
-            r'стоимост\w+': 'cost',
-            r'цен\w+': 'price',
-            r'срок\w*': 'timeline',
+            # Общие термины
+            'cost': ['стоимост', 'цен', 'cost', 'price'],
+            'requirements': ['требован', 'услов', 'requirements', 'conditions'],
+            'timeline': ['срок', 'timeline'],
         }
+        
+        # Создаем паттерны для замены (старая логика, но теперь генерируется автоматически)
+        self.replacements = {}
+        for english_key, variants in self.translations.items():
+            for variant in variants:
+                # Добавляем паттерн с окончаниями
+                pattern = variant.replace(' ', r'\s+') + r'\w*'
+                self.replacements[pattern] = english_key.replace(' ', '_')
         
     def normalize(self, text: str) -> str:
         """Нормализовать текст"""
@@ -196,6 +214,14 @@ class KnowledgeAgentV3:
                     if key in ['title', 'summary', 'category', 'subcategory']:
                         doc[key] = value
             
+            # Извлекаем tags (могут содержать и русские, и английские термины)
+            tags_match = re.search(r'tags:\s*\[(.*?)\]', metadata_str)
+            if tags_match:
+                tags_str = tags_match.group(1)
+                # Парсим список тегов
+                tags = [t.strip().strip('"').strip("'") for t in tags_str.split(',')]
+                doc['tags'] = tags
+            
             # Извлекаем source файлы
             source_match = re.search(r'- path:\s*"([^"]+)"', metadata_str)
             if source_match:
@@ -213,6 +239,31 @@ class KnowledgeAgentV3:
             print(f"⚠️  Ошибка парсинга {file_path.name}: {e}")
             return None
     
+    def _get_multilingual_terms(self, title: str, category: str, subcategory: str) -> List[str]:
+        """Получить многоязычные синонимы для терминов документа"""
+        terms = []
+        
+        # Собираем все слова из title, category, subcategory
+        all_text = f"{title} {category} {subcategory}".lower()
+        words = re.findall(r'\w+', all_text)
+        
+        # Для каждого слова ищем переводы в словаре
+        for word in words:
+            if len(word) < 3:  # Игнорируем короткие слова
+                continue
+            
+            # Ищем совпадения в словаре переводов
+            for english_key, variants in self.normalizer.translations.items():
+                # Проверяем, совпадает ли слово с каким-то вариантом
+                for variant in variants:
+                    variant_clean = variant.replace(' ', '').lower()
+                    if word.startswith(variant_clean[:min(5, len(variant_clean))]):
+                        # Добавляем все варианты этого термина
+                        terms.extend(variants)
+                        break
+        
+        return list(set(terms))  # Убираем дубликаты
+    
     def build_bm25_index(self):
         """Построить BM25 индекс"""
         if not BM25_AVAILABLE:
@@ -227,11 +278,18 @@ class KnowledgeAgentV3:
             title = doc.get('title', '')
             category = doc.get('category', '')
             subcategory = doc.get('subcategory', '')
+            tags = doc.get('tags', [])
+            
+            # Добавляем многоязычные синонимы для title и category
+            # Это позволяет искать на русском и английском
+            multilingual_terms = self._get_multilingual_terms(title, category, subcategory)
             
             text_parts = [
                 title, title, title,  # 3x boost для title
                 category, category,   # 2x boost для category
                 subcategory,
+                ' '.join(tags),       # Добавляем tags (содержат оба языка)
+                ' '.join(multilingual_terms),  # Добавляем синонимы/переводы
                 doc.get('summary', ''),
                 doc.get('body', '')[:5000]  # Первые 5000 символов тела
             ]
@@ -264,16 +322,27 @@ class KnowledgeAgentV3:
                 final_score = float(score)
                 
                 # БОНУС: точное совпадение важных терминов в title/category
-                title_normalized = self.normalizer.normalize(doc.get('title', ''))
-                category_normalized = self.normalizer.normalize(doc.get('category', ''))
+                title = doc.get('title', '')
+                category = doc.get('category', '')
                 
-                # Проверяем ключевые термины в запросе
-                for token in query_tokens:
-                    if len(token) > 3:  # Только значимые слова
-                        if token in title_normalized.split():
-                            final_score *= 1.5  # 50% буст за совпадение в title
-                        elif token in category_normalized.split():
-                            final_score *= 1.2  # 20% буст за совпадение в category
+                # Нормализуем и токенизируем вместе (важно для комбинаций типа "страна + программа")
+                combined_text = f"{category} {title}"
+                combined_tokens = self.normalizer.tokenize(combined_text)
+                
+                # Считаем сколько токенов из запроса есть в документе
+                significant_tokens = [t for t in query_tokens if len(t) > 3]
+                matches = sum(1 for token in significant_tokens if token in combined_tokens)
+                
+                # Усиленный буст если совпали ВСЕ или большинство значимых токенов
+                if len(significant_tokens) > 0:
+                    match_ratio = matches / len(significant_tokens)
+                    
+                    if match_ratio >= 0.8:  # 80%+ токенов совпало
+                        final_score *= 3.0  # Сильный буст
+                    elif match_ratio >= 0.5:  # 50%+ токенов совпало
+                        final_score *= 2.0  # Средний буст
+                    elif match_ratio > 0:  # Хоть что-то совпало
+                        final_score *= (1 + match_ratio * 0.5)  # Небольшой буст
                 
                 results.append((doc, final_score))
         
