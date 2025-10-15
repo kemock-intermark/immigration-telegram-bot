@@ -416,7 +416,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def llm_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /llm_status - статус LLM провайдеров"""
     try:
-        from llm_providers import get_llm_status
+        from llm_providers import get_llm_status, multi_llm
         status = get_llm_status()
         
         status_message = "🤖 <b>СТАТУС LLM ПРОВАЙДЕРОВ</b>\n\n"
@@ -438,6 +438,14 @@ async def llm_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             
             status_message += "\n"
         
+        # Добавляем информацию о доступных провайдерах
+        available_providers = multi_llm.get_available_providers()
+        status_message += f"<b>Доступно провайдеров: {len(available_providers)}</b>\n"
+        
+        if len(available_providers) == 0:
+            status_message += "\n⚠️ <b>Все провайдеры недоступны!</b>\n"
+            status_message += "Используется fallback режим."
+        
         await update.message.reply_text(
             status_message,
             parse_mode='HTML',
@@ -453,6 +461,46 @@ async def llm_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         await update.message.reply_text(
             f"❌ Ошибка получения статуса: {str(e)}",
+            parse_mode='HTML',
+            reply_markup=get_main_keyboard()
+        )
+
+async def reset_llm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /reset_llm - сброс статуса LLM провайдеров"""
+    try:
+        from llm_providers import multi_llm
+        
+        # Сбрасываем все провайдеры
+        reset_count = 0
+        for provider in multi_llm.providers:
+            if not provider.is_available:
+                provider.is_available = True
+                multi_llm.retry_counts[provider.name] = 0
+                provider.last_error = None
+                reset_count += 1
+        
+        if reset_count > 0:
+            message = f"🔄 <b>Сброшено {reset_count} провайдеров</b>\n\n"
+            message += "Попробуйте задать вопрос - система должна работать нормально."
+        else:
+            message = "✅ <b>Все провайдеры уже активны</b>\n\n"
+            message += "Никаких изменений не требуется."
+        
+        await update.message.reply_text(
+            message,
+            parse_mode='HTML',
+            reply_markup=get_main_keyboard()
+        )
+        
+    except ImportError:
+        await update.message.reply_text(
+            "⚠️ Система сброса LLM недоступна",
+            parse_mode='HTML',
+            reply_markup=get_main_keyboard()
+        )
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Ошибка сброса: {str(e)}",
             parse_mode='HTML',
             reply_markup=get_main_keyboard()
         )
@@ -500,6 +548,7 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("llm_status", llm_status_command))
+    application.add_handler(CommandHandler("reset_llm", reset_llm_command))
     
     # Обработчик обычных сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

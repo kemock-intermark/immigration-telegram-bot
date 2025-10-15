@@ -201,9 +201,47 @@ class MultiLLMProvider:
         self.current_provider_index = 0
         self.retry_counts = {provider.name: 0 for provider in self.providers}
         self.max_retries_per_provider = 2
+        self.last_reset_time = {provider.name: 0 for provider in self.providers}
+        self.reset_interval = 3600  # 1 час в секундах
     
+    def _should_reset_provider(self, provider_name: str) -> bool:
+        """Проверить, нужно ли сбросить статус провайдера"""
+        import time
+        current_time = time.time()
+        last_reset = self.last_reset_time.get(provider_name, 0)
+        return (current_time - last_reset) > self.reset_interval
+    
+    def _auto_reset_providers(self):
+        """Автоматически сбросить статус провайдеров через определенное время"""
+        import time
+        current_time = time.time()
+        
+        for provider in self.providers:
+            if not provider.is_available and self._should_reset_provider(provider.name):
+                # Проверяем, действительно ли провайдер недоступен
+                try:
+                    # Простой тест доступности
+                    if provider.name == "Groq" and provider.is_configured():
+                        # Для Groq делаем простой запрос
+                        test_response = provider.generate_response(
+                            "Test", "Say 'test'", max_retries=1
+                        )
+                        if not test_response.error or "rate limit" not in test_response.error.lower():
+                            provider.is_available = True
+                            self.retry_counts[provider.name] = 0
+                            provider.last_error = None
+                            self.last_reset_time[provider.name] = current_time
+                            print(f"🔄 {provider.name} автоматически восстановлен")
+                    
+                except Exception as e:
+                    # Если тест не прошел, оставляем как есть
+                    pass
+
     def get_available_providers(self) -> list:
         """Получить список доступных провайдеров"""
+        # Автоматически сбрасываем провайдеров если прошло достаточно времени
+        self._auto_reset_providers()
+        
         available = []
         for provider in self.providers:
             if provider.is_configured() and provider.is_available:
