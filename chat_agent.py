@@ -2,6 +2,7 @@
 """
 Улучшенный агент базы знаний с BM25 поиском
 Версия 3.0 - правильная архитектура без костылей
+Версия 3.1 - двуязычная поддержка (rus/eng)
 """
 
 import json
@@ -9,9 +10,18 @@ import re
 import hashlib
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Literal
 from collections import defaultdict
 from functools import lru_cache
+
+# Утилиты для работы с языками
+try:
+    from language_utils import LanguageDetector, LanguageRouter, Language
+    LANGUAGE_UTILS_AVAILABLE = True
+except ImportError:
+    LANGUAGE_UTILS_AVAILABLE = False
+    Language = Literal["rus", "eng"]
+    print("⚠️  language_utils не найден. Двуязычность отключена.")
 
 # BM25 для правильного поиска
 try:
@@ -122,15 +132,33 @@ class TextNormalizer:
 
 
 class KnowledgeAgentV3:
-    """Улучшенный агент с BM25 поиском"""
+    """Улучшенный агент с BM25 поиском и двуязычной поддержкой"""
     
-    def __init__(self, knowledge_dir: str):
+    def __init__(self, knowledge_dir: str, lang: Optional[Language] = None, auto_detect_lang: bool = True):
+        """
+        Инициализация агента
+        
+        Args:
+            knowledge_dir: Путь к директории knowledge/
+            lang: Язык для загрузки ("rus" или "eng"). Если None - загружаются оба
+            auto_detect_lang: Автоматически определять язык запросов (по умолчанию True)
+        """
         self.knowledge_dir = Path(knowledge_dir)
         self.documents = []
         self.normalizer = TextNormalizer()
         self.bm25 = None
         self.tokenized_corpus = []
         self.kb_version = None
+        self.lang = lang  # Текущий язык (или None для обоих)
+        self.auto_detect_lang = auto_detect_lang
+        
+        # Инициализация языковых утилит
+        if LANGUAGE_UTILS_AVAILABLE:
+            self.language_detector = LanguageDetector()
+            self.language_router = LanguageRouter(self.knowledge_dir)
+        else:
+            self.language_detector = None
+            self.language_router = None
         
         # LLM клиент
         self.groq_client = None
@@ -145,11 +173,54 @@ class KnowledgeAgentV3:
         self.load_knowledge_base()
     
     def load_knowledge_base(self):
-        """Загрузить базу знаний"""
-        print("📚 Загрузка базы знаний...")
+        """Загрузить базу знаний с учетом языка"""
+        lang_label = f" ({self.lang.upper()})" if self.lang else ""
+        print(f"📚 Загрузка базы знаний{lang_label}...")
         
-        # Загружаем версию из manifest если есть
-        manifest_path = self.knowledge_dir / 'manifest.json'
+        # Загружаем версию из manifest (с учетом языка)
+        self._load_manifest()
+        
+        # Определяем директории для сканирования
+        search_dirs = self._get_search_directories()
+        
+        # Загружаем все .md файлы
+        md_files = []
+        for search_dir in search_dirs:
+            for md_file in search_dir.rglob("*.md"):
+                if not md_file.name.startswith(('00_', '_')):
+                    md_files.append(md_file)
+        
+        # Загружаем документы
+        for md_file in md_files:
+            try:
+                with open(md_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                doc = self.extract_metadata_and_content(content, md_file)
+                if doc:
+                    # Фильтрация по языку (если задан)
+                    if self.lang is None or doc.get('lang') == self.lang:
+                        self.documents.append(doc)
+            except Exception as e:
+                print(f"⚠️  Ошибка загрузки {md_file.name}: {e}")
+        
+        print(f"✅ Загружено {len(self.documents)} документов{lang_label}")
+        
+        # Строим BM25 индекс
+        if BM25_AVAILABLE and self.documents:
+            print("🔍 Построение BM25 индекса...")
+            self.build_bm25_index()
+            print("✅ BM25 индекс готов")
+    
+    def _load_manifest(self):
+        """Загрузить manifest с учетом языка"""
+        if self.lang and self.language_router:
+            # Язык задан - загружаем языковой manifest
+            manifest_path = self.language_router.get_manifest_path(self.lang)
+        else:
+            # Язык не задан - загружаем общий manifest (legacy)
+            manifest_path = self.knowledge_dir / 'manifest.json'
+        
         if manifest_path.exists():
             try:
                 with open(manifest_path, 'r', encoding='utf-8') as f:
@@ -161,31 +232,26 @@ class KnowledgeAgentV3:
                 self.kb_version = 'unknown'
         else:
             self.kb_version = 'unknown'
-        
-        # Загружаем все .md файлы кроме служебных
-        md_files = []
-        for md_file in self.knowledge_dir.rglob("*.md"):
-            if not md_file.name.startswith(('00_', '_')):
-                md_files.append(md_file)
-        
-        for md_file in md_files:
-            try:
-                with open(md_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                doc = self.extract_metadata_and_content(content, md_file)
-                if doc:
-                    self.documents.append(doc)
-            except Exception as e:
-                print(f"⚠️  Ошибка загрузки {md_file.name}: {e}")
-        
-        print(f"✅ Загружено {len(self.documents)} документов")
-        
-        # Строим BM25 индекс
-        if BM25_AVAILABLE and self.documents:
-            print("🔍 Построение BM25 индекса...")
-            self.build_bm25_index()
-            print("✅ BM25 индекс готов")
+    
+    def _get_search_directories(self) -> List[Path]:
+        """Определить директории для поиска документов"""
+        if self.lang and self.language_router:
+            # Язык задан - загружаем только из языковой директории
+            lang_dir = self.language_router.get_docs_dir(self.lang)
+            if lang_dir.exists():
+                return [lang_dir]
+            else:
+                print(f"⚠️  Языковая директория {lang_dir} не найдена")
+                return []
+        else:
+            # Язык не задан - загружаем из корня (legacy) и из обеих языковых папок (если есть)
+            dirs = [self.knowledge_dir]
+            if self.language_router:
+                for lang in ["rus", "eng"]:
+                    lang_dir = self.language_router.get_docs_dir(lang)
+                    if lang_dir.exists():
+                        dirs.append(lang_dir)
+            return dirs
     
     def extract_metadata_and_content(self, content: str, file_path: Path) -> Optional[Dict]:
         """Извлечь метаданные и контент"""
@@ -211,7 +277,7 @@ class KnowledgeAgentV3:
                     key = key.strip()
                     value = value.strip().strip('"').strip("'")
                     
-                    if key in ['title', 'summary', 'category', 'subcategory']:
+                    if key in ['title', 'summary', 'category', 'subcategory', 'lang']:
                         doc[key] = value
             
             # Извлекаем tags (могут содержать и русские, и английские термины)
@@ -504,10 +570,37 @@ class KnowledgeAgentV3:
         
         return answer
     
-    def ask(self, question: str) -> str:
-        """Задать вопрос"""
+    def ask(self, question: str, lang: Optional[Language] = None) -> str:
+        """
+        Задать вопрос с автоопределением языка
+        
+        Args:
+            question: Вопрос пользователя
+            lang: Принудительное указание языка (опционально)
+        
+        Returns:
+            Ответ на вопрос
+        """
+        # Определяем язык запроса
+        detected_lang = None
+        if self.auto_detect_lang and self.language_detector and not lang:
+            detected_lang = self.language_detector.detect_from_query(question)
+            
+            # Если агент инициализирован с конкретным языком и он отличается - предупреждаем
+            if self.lang and detected_lang != self.lang:
+                print(f"⚠️  Обнаружен запрос на {detected_lang}, но агент работает с {self.lang}")
+                # Используем язык агента
+                detected_lang = self.lang
+        else:
+            # Используем переданный lang или язык агента
+            detected_lang = lang or self.lang
+        
+        # Поиск документов
         results = self.search_documents(question, limit=5)
+        
+        # Форматирование ответа
         answer = self.format_answer(question, results)
+        
         return answer
 
 
