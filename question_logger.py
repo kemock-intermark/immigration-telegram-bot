@@ -38,9 +38,10 @@ class QuestionLogger:
         username: Optional[str],
         question: str,
         answer_found: bool,
-        response_length: int = 0
+        response_length: int = 0,
+        lang: Optional[str] = None
     ):
-        """Залогировать вопрос пользователя"""
+        """Залогировать вопрос пользователя с указанием языка"""
         with self.lock:
             try:
                 # Создаём запись
@@ -51,6 +52,7 @@ class QuestionLogger:
                     "question": question,
                     "answer_found": answer_found,
                     "response_length": response_length,
+                    "lang": lang or "unknown",  # Язык запроса
                     "date": datetime.now().strftime("%Y-%m-%d"),
                     "time": datetime.now().strftime("%H:%M:%S")
                 }

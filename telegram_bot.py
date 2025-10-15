@@ -16,6 +16,14 @@ from chat_agent import KnowledgeAgent
 # Импортируем логгер вопросов
 from question_logger import get_logger
 
+# Импортируем утилиты языка
+try:
+    from language_utils import LanguageDetector
+    language_detector = LanguageDetector()
+except ImportError:
+    language_detector = None
+    print("⚠️  language_utils не найден. Определение языка отключено.")
+
 # Для Telegram бота нужна библиотека python-telegram-bot
 try:
     from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -248,6 +256,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Если это не кнопка, обрабатываем как вопрос
     question = text
     
+    # Определяем язык запроса
+    detected_lang = None
+    if language_detector:
+        detected_lang = language_detector.detect_from_query(question)
+        logger.info(f"Detected language: {detected_lang}")
+    
     # Обновляем статистику
     usage_stats['total_queries'] += 1
     usage_stats['users'].add(user.id)
@@ -264,14 +278,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Формирование ответа
         answer = agent.format_answer(question, results)
         
-        # Логируем вопрос с информацией о результате
+        # Логируем вопрос с информацией о результате и языке
         answer_found = len(results) > 0 and "не знаю — нет в материалах" not in answer.lower()
         question_logger.log_question(
             user_id=user.id,
             username=user.username,
             question=question,
             answer_found=answer_found,
-            response_length=len(answer)
+            response_length=len(answer),
+            lang=detected_lang  # Добавляем язык
         )
         
         # Telegram имеет лимит 4096 символов на сообщение
