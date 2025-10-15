@@ -107,7 +107,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ━━━━━━━━━━━━━━━━━━━━━━
 
 <b>📚 База знаний:</b>
-✓ {len(agent.documents)} актуальных документов
+✓ {len(agent_rus.documents) + len(agent_eng.documents) if agent_eng else len(agent_rus.documents)} актуальных документов
 ✓ 40+ стран и программ
 ✓ Точные цифры, сроки, требования
 ✓ Ссылки на источники
