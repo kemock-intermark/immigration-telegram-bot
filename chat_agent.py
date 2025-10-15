@@ -472,12 +472,19 @@ class KnowledgeAgentV3:
         return context
     
     def generate_llm_answer(self, query: str, context: str, sources: List[str]) -> Optional[str]:
-        """Генерировать ответ с помощью LLM"""
+        """Генерировать ответ с помощью LLM с обработкой rate limits"""
         if not self.groq_client:
             return None
         
-        try:
-            system_prompt = """Ты - опытный консультант по программам иммиграции и получения гражданства.
+        import time
+        import requests
+        
+        max_retries = 3
+        base_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                system_prompt = """Ты - опытный консультант по программам иммиграции и получения гражданства.
 
 СТИЛЬ ОБЩЕНИЯ:
 - Отвечай как живой человек, без формальных "Введение" и "Заключение"
@@ -505,7 +512,7 @@ class KnowledgeAgentV3:
 5. Отвечай на том же языке, что и вопрос
 6. НЕ придумывай - только факты из контекста"""
 
-            user_prompt = f"""Вопрос клиента:
+                user_prompt = f"""Вопрос клиента:
 {query}
 
 Доступная информация:
@@ -513,27 +520,87 @@ class KnowledgeAgentV3:
 
 Ответь на вопрос клиента красиво и структурированно. Используй HTML-форматирование: <b>жирный текст</b>, <i>курсив</i>, списки с маркерами. Разбивай текст на короткие абзацы (используй \\n\\n для разделения)."""
 
-            response = self.groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.3,
-                max_tokens=1500,
-            )
-            
-            llm_answer = response.choices[0].message.content
-            
-            final_answer = llm_answer + "\n\n---\n\n**Источники:**\n"
-            for source in sources:
-                final_answer += f"- {source}\n"
-            
-            return final_answer
-            
-        except Exception as e:
-            print(f"⚠️  Ошибка LLM: {e}")
-            return None
+                response = self.groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=1500,
+                )
+                
+                llm_answer = response.choices[0].message.content
+                
+                final_answer = llm_answer + "\n\n---\n\n**Источники:**\n"
+                for source in sources:
+                    final_answer += f"- {source}\n"
+                
+                return final_answer
+                
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 429:
+                    # Rate limit exceeded
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    print(f"⚠️  Rate limit exceeded (429). Попытка {attempt + 1}/{max_retries}, ожидание {delay} сек...")
+                    
+                    if attempt < max_retries - 1:
+                        time.sleep(delay)
+                        continue
+                    else:
+                        # Все попытки исчерпаны, возвращаем fallback ответ
+                        print(f"❌ Все попытки исчерпаны. Возвращаем fallback ответ.")
+                        return self._generate_fallback_answer(query, context, sources)
+                else:
+                    print(f"⚠️  HTTP ошибка LLM: {e}")
+                    return None
+                    
+            except Exception as e:
+                print(f"⚠️  Ошибка LLM: {e}")
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    print(f"🔄 Повторная попытка через {delay} сек...")
+                    time.sleep(delay)
+                else:
+                    return None
+        
+        return None
+    
+    def _generate_fallback_answer(self, query: str, context: str, sources: List[str]) -> str:
+        """Генерировать fallback ответ когда LLM недоступен"""
+        # Простой fallback ответ на основе найденных документов
+        fallback = f"""<b>📚 Информация найдена в базе знаний</b>
+
+К сожалению, в данный момент сервис генерации ответов перегружен. 
+Но я нашел релевантную информацию по вашему запросу:
+
+<b>🔍 Найденные материалы:</b>
+"""
+        
+        # Извлекаем заголовки из контекста
+        lines = context.split('\n')
+        titles = []
+        for line in lines:
+            if line.startswith('# ') and len(line) > 3:
+                titles.append(line[2:].strip())
+        
+        if titles:
+            for title in titles[:5]:  # Показываем до 5 заголовков
+                fallback += f"• {title}\n"
+        else:
+            fallback += "• Документы найдены в базе знаний\n"
+        
+        fallback += f"""
+
+<b>⏳ Попробуйте повторить запрос через 1-2 минуты</b> - сервис восстановится автоматически.
+
+<b>📋 Источники:</b>
+"""
+        
+        for source in sources[:3]:  # Показываем до 3 источников
+            fallback += f"• {source}\n"
+        
+        return fallback
     
     def format_answer(self, query: str, results: List[Tuple[Dict, float]]) -> str:
         """Форматировать ответ"""

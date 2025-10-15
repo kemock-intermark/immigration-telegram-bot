@@ -315,8 +315,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Поиск в базе знаний
         results = selected_agent.search_documents(question, limit=5)
         
-        # Формирование ответа
-        answer = selected_agent.format_answer(question, results)
+        # Проверяем, есть ли результаты
+        if not results:
+            answer = "❌ Не знаю — нет в материалах.\n\nПо вашему запросу не найдено информации в базе знаний."
+        else:
+            # Формирование ответа с обработкой rate limits
+            answer = selected_agent.format_answer(question, results)
+            
+            # Если ответ содержит fallback (rate limit), отправляем уведомление
+            if "сервис генерации ответов перегружен" in answer:
+                # Отправляем уведомление о задержке
+                delay_message = """⏳ <b>Сервис временно перегружен</b>
+
+Генерирую ответ... это может занять 1-2 минуты.
+
+<i>Пожалуйста, подождите</i> ⏰"""
+                
+                await update.message.reply_text(
+                    delay_message, 
+                    parse_mode='HTML',
+                    reply_markup=get_main_keyboard()
+                )
+                
+                # Продолжаем показывать "печатает"
+                await update.message.chat.send_action("typing")
         
         # Логируем вопрос с информацией о результате и языке
         answer_found = len(results) > 0 and "не знаю — нет в материалах" not in answer.lower()
