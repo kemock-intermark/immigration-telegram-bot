@@ -602,6 +602,27 @@ class KnowledgeAgentV3:
         answer = self.format_answer(question, results)
         
         return answer
+    
+    def set_language(self, lang: Optional[Language]):
+        """
+        Переключить язык агента (перезагружает базу знаний)
+        
+        Args:
+            lang: Новый язык ("rus", "eng" или None для обоих)
+        """
+        if lang not in [None, "rus", "eng"]:
+            raise ValueError(f"Неподдерживаемый язык: {lang}. Используйте 'rus', 'eng' или None")
+        
+        self.lang = lang
+        self.documents = []
+        self.tokenized_corpus = []
+        self.bm25 = None
+        
+        # Перезагружаем базу знаний с новым языком
+        self.load_knowledge_base()
+        
+        lang_label = f"{lang.upper()}" if lang else "все языки"
+        print(f"🌍 Язык переключен на: {lang_label}")
 
 
 # Для совместимости

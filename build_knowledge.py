@@ -2,6 +2,7 @@
 """
 Скрипт для создания базы знаний из PDF презентаций
 Извлекает текст, структурирует по темам и сохраняет в формате Markdown
+Версия 2.0 - с поддержкой двуязычности (rus/eng)
 """
 
 import os
@@ -11,7 +12,7 @@ import re
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional, Literal
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
 
@@ -22,18 +23,49 @@ except ImportError:
     os.system(f"{sys.executable} -m pip install PyPDF2 --quiet")
     import PyPDF2
 
+# Утилиты для работы с языками
+try:
+    from language_utils import LanguageDetector, LanguageRouter, Language
+    LANGUAGE_UTILS_AVAILABLE = True
+except ImportError:
+    LANGUAGE_UTILS_AVAILABLE = False
+    Language = Literal["rus", "eng"]
+    print("⚠️  language_utils не найден. Двуязычность отключена.")
+
 # Настройки производительности
 MAX_WORKERS = min(os.cpu_count() - 1 if os.cpu_count() else 1, 6)
 BATCH_SIZE = 4
 
 
 class KnowledgeBaseBuilder:
-    def __init__(self, raw_dir: str, knowledge_dir: str):
+    def __init__(self, raw_dir: str, knowledge_dir: str, bilingual: bool = True):
+        """
+        Инициализация builder
+        
+        Args:
+            raw_dir: Директория с исходными PDF файлами
+            knowledge_dir: Директория для сохранения базы знаний
+            bilingual: Включить двуязычную обработку (rus/eng отдельно)
+        """
         self.raw_dir = Path(raw_dir)
         self.knowledge_dir = Path(knowledge_dir)
         self.build_date = datetime.now().strftime("%Y-%m-%d")
+        self.bilingual = bilingual and LANGUAGE_UTILS_AVAILABLE
         self.documents = []
         self.build_log = []
+        
+        # Двуязычные артефакты
+        self.documents_by_lang = {'rus': [], 'eng': []} if self.bilingual else None
+        
+        # Утилиты языка
+        if self.bilingual:
+            self.language_detector = LanguageDetector()
+            self.language_router = LanguageRouter(self.knowledge_dir)
+            self.log("🌍 Двуязычный режим активирован (RUS/ENG)")
+        else:
+            self.language_detector = None
+            self.language_router = None
+            self.log("📚 Обычный режим (legacy)")
         
     def log(self, message: str):
         """Добавить запись в лог"""
@@ -75,7 +107,36 @@ class KnowledgeBaseBuilder:
         
         return "\n".join(text_content), page_count
     
-    def categorize_file(self, filename: str, content: str) -> Dict[str, any]:
+    def detect_document_language(self, pdf_path: Path, content: str) -> Language:
+        """
+        Определить язык документа
+        
+        Правила:
+        1. Если файл в raw/rus/ → rus
+        2. Если файл в raw/eng/ → eng
+        3. Если legacy (raw/*.pdf) → определяем по содержимому
+        
+        Args:
+            pdf_path: Путь к PDF файлу
+            content: Извлеченный текст
+        
+        Returns:
+            "rus" или "eng"
+        """
+        if not self.bilingual or not self.language_detector:
+            return "rus"  # Default для legacy режима
+        
+        # Проверяем путь к файлу
+        source_lang = self.language_detector.get_source_language(pdf_path)
+        if source_lang:
+            return source_lang
+        
+        # Legacy файл - определяем по содержимому
+        detected = self.language_detector.detect_from_text(content, threshold=0.30)
+        self.log(f"  📝 Legacy файл {pdf_path.name} → определен как {detected.upper()}")
+        return detected
+    
+    def categorize_file(self, filename: str, content: str, lang: Optional[Language] = None) -> Dict[str, any]:
         """Определить категорию и метаданные по имени файла и содержимому"""
         filename_lower = filename.lower()
         
@@ -126,13 +187,43 @@ class KnowledgeBaseBuilder:
         if 'financial independence' in filename_lower:
             tags.append('финансовая-независимость')
         
-        return {
+        result = {
             'country': country,
             'program_type': program_type,
             'subcategory': subcategory,
             'summary': summary,
             'tags': tags
         }
+        
+        # Добавляем язык если передан
+        if lang:
+            result['lang'] = lang
+        
+        return result
+    
+    def _get_source_path(self, pdf_file: Path, lang: Optional[Language] = None) -> str:
+        """
+        Получить корректный путь к источнику с учетом языка
+        
+        Args:
+            pdf_file: Path объект к PDF файлу
+            lang: Язык документа
+        
+        Returns:
+            Путь вида "raw/{lang}/file.pdf" или "raw/file.pdf"
+        """
+        # Проверяем, находится ли файл уже в языковой папке
+        parts = pdf_file.parts
+        if 'rus' in parts or 'eng' in parts:
+            # Файл уже в языковой папке, возвращаем относительный путь от корня проекта
+            raw_index = parts.index('raw')
+            return '/'.join(parts[raw_index:])
+        
+        # Legacy файл - формируем путь с учетом определенного языка
+        if lang and self.bilingual:
+            return f"raw/{lang}/{pdf_file.name}"
+        else:
+            return f"raw/{pdf_file.name}"
     
     def create_markdown_document(self, pdf_file: Path, text: str, page_count: int, 
                                  metadata: Dict) -> str:
@@ -144,15 +235,21 @@ class KnowledgeBaseBuilder:
         safe_name = re.sub(r'[-\s]+', '-', safe_name).strip('-').lower()
         md_filename = f"{safe_name}-{metadata['subcategory']}.md"
         
+        # Формируем путь к источнику с учетом языка
+        source_path = self._get_source_path(pdf_file, metadata.get('lang'))
+        
+        # Формируем поле lang для YAML (если есть)
+        lang_field = f'lang: "{metadata["lang"]}"\n' if 'lang' in metadata else ''
+        
         # Создаем метаданные
         doc = f"""---
 title: "{metadata['country']}: {metadata['program_type']}"
 summary: "{metadata['summary']}"
 category: "{metadata['country']}"
 subcategory: "{metadata['subcategory']}"
-tags: {metadata['tags']}
+{lang_field}tags: {metadata['tags']}
 source_files:
-  - path: "raw/{pdf_file.name}"
+  - path: "{source_path}"
     slides: [1-{page_count}]
 extraction_date: "{self.build_date}"
 version: "{checksum}"
@@ -193,16 +290,25 @@ related: []
             if not text:
                 return None, f"⚠️  Пропуск {pdf_file.name}: не удалось извлечь текст"
             
-            # Определяем категорию
-            metadata = self.categorize_file(pdf_file.name, text)
+            # Определяем язык документа
+            doc_lang = self.detect_document_language(pdf_file, text)
+            
+            # Определяем категорию (с языком)
+            metadata = self.categorize_file(pdf_file.name, text, lang=doc_lang)
             
             # Создаем markdown документ
             md_filename, md_content = self.create_markdown_document(
                 pdf_file, text, page_count, metadata
             )
             
-            # Создаем папку для страны если нужно
-            country_dir = self.knowledge_dir / metadata['country']
+            # Определяем базовую директорию (с учетом языка)
+            if self.bilingual and self.language_router:
+                base_dir = self.language_router.get_docs_dir(doc_lang)
+            else:
+                base_dir = self.knowledge_dir
+            
+            # Создаем папку для страны
+            country_dir = base_dir / metadata['country']
             country_dir.mkdir(exist_ok=True, parents=True)
             
             # Сохраняем файл с проверкой на дубликаты
@@ -217,26 +323,52 @@ related: []
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
             
+            # Формируем путь к документу (относительно knowledge/)
+            if self.bilingual and self.language_router:
+                # Путь включает языковую папку: rus/Country/file.md
+                doc_path = f"{doc_lang}/{metadata['country']}/{md_filename}"
+            else:
+                # Legacy путь: Country/file.md
+                doc_path = f"{metadata['country']}/{md_filename}"
+            
             # Готовим информацию о документе
             doc_info = {
                 'country': metadata['country'],
                 'title': f"{metadata['country']}: {metadata['program_type']}",
-                'path': f"{metadata['country']}/{md_filename}",
+                'path': doc_path,
                 'summary': metadata['summary'],
                 'subcategory': metadata['subcategory'],
                 'tags': metadata['tags'],
                 'source_file': str(pdf_file.name),
-                'checksum': self.calculate_checksum(pdf_file)[0]
+                'checksum': self.calculate_checksum(pdf_file)[0],
+                'lang': doc_lang if self.bilingual else None
             }
             
-            return doc_info, f"✅ Создан: {metadata['country']}/{md_filename}"
+            return doc_info, f"✅ ({doc_lang.upper()}) Создан: {doc_path}"
             
         except Exception as e:
             return None, f"❌ Ошибка при обработке {pdf_file.name}: {e}"
     
     def process_all_files(self):
         """Обработать все PDF файлы в папке raw (с параллелизмом)"""
-        pdf_files = sorted(self.raw_dir.glob("*.pdf"))
+        # Собираем файлы из всех источников
+        pdf_files = []
+        
+        # Legacy файлы в корне raw/
+        pdf_files.extend(list(self.raw_dir.glob("*.pdf")))
+        
+        # Файлы в языковых папках (если двуязычный режим)
+        if self.bilingual:
+            rus_dir = self.raw_dir / 'rus'
+            eng_dir = self.raw_dir / 'eng'
+            
+            if rus_dir.exists():
+                pdf_files.extend(list(rus_dir.glob("*.pdf")))
+            
+            if eng_dir.exists():
+                pdf_files.extend(list(eng_dir.glob("*.pdf")))
+        
+        pdf_files = sorted(pdf_files)
         
         if not pdf_files:
             self.log("❌ Не найдено PDF файлов в папке raw/")
@@ -267,6 +399,11 @@ related: []
                     
                     if doc_info:
                         self.documents.append(doc_info)
+                        
+                        # Добавляем в языковую коллекцию (если двуязычный режим)
+                        if self.bilingual and doc_info.get('lang'):
+                            doc_lang = doc_info['lang']
+                            self.documents_by_lang[doc_lang].append(doc_info)
                         
                         # Группируем по странам
                         country = doc_info['country']
@@ -353,10 +490,13 @@ version: "{hashlib.md5(str(self.documents).encode()).hexdigest()[:8]}"
         self.log(f"✅ Создан индексный файл: 00_index.md")
     
     def save_manifest(self, sources: List[Dict]):
-        """Сохранить manifest.json"""
+        """Сохранить manifest.json (и языковые манифесты если двуязычный режим)"""
         try:
+            version = f"build_{self.build_date}_{datetime.now().strftime('%H-%M')}"
+            
+            # Общий manifest (legacy совместимость)
             manifest = {
-                'version': f"build_{self.build_date}_{datetime.now().strftime('%H-%M')}",
+                'version': version,
                 'created': datetime.now().isoformat(),
                 'sources': sources,
                 'total_documents': len(self.documents),
@@ -368,12 +508,48 @@ version: "{hashlib.md5(str(self.documents).encode()).hexdigest()[:8]}"
                 json.dump(manifest, f, indent=2, ensure_ascii=False)
             
             self.log(f"✅ Создан manifest: {len(sources)} источников")
+            
+            # Языковые манифесты (если двуязычный режим)
+            if self.bilingual and self.documents_by_lang and self.language_router:
+                for lang in ['rus', 'eng']:
+                    lang_docs = self.documents_by_lang[lang]
+                    
+                    # Фильтруем источники по языку
+                    lang_sources = [
+                        s for s in sources 
+                        if any(doc['source_file'] == Path(s['path']).name and doc.get('lang') == lang 
+                               for doc in lang_docs)
+                    ]
+                    
+                    lang_manifest = {
+                        'version': version,
+                        'created': datetime.now().isoformat(),
+                        'language': lang,
+                        'sources': lang_sources,
+                        'total_documents': len(lang_docs),
+                        'total_sources': len(lang_sources)
+                    }
+                    
+                    lang_manifest_path = self.language_router.get_manifest_path(lang)
+                    with open(lang_manifest_path, 'w', encoding='utf-8') as f:
+                        json.dump(lang_manifest, f, indent=2, ensure_ascii=False)
+                    
+                    self.log(f"✅ Создан manifest.{lang}.json: {len(lang_docs)} документов")
+            
         except Exception as e:
             self.log(f"⚠️  Ошибка создания manifest: {e}")
     
     def create_build_log(self):
         """Создать лог сборки"""
         self.log("📋 Создание лога сборки...")
+        
+        # Формируем статистику по языкам
+        lang_stats = ""
+        if self.bilingual and self.documents_by_lang:
+            lang_stats = "\n### Языковая статистика\n\n"
+            for lang in ['rus', 'eng']:
+                count = len(self.documents_by_lang[lang])
+                lang_stats += f"- **{lang.upper()}:** {count} документов\n"
         
         log_content = f"""# Лог сборки базы знаний
 
@@ -386,7 +562,7 @@ version: "{hashlib.md5(str(self.documents).encode()).hexdigest()[:8]}"
 - **Обработано файлов:** {len(self.documents)}
 - **Создано документов:** {len(self.documents)}
 - **Категорий:** {len(set(doc['country'] for doc in self.documents))}
-
+{lang_stats}
 ## Подробный лог
 
 """
@@ -406,8 +582,13 @@ version: "{hashlib.md5(str(self.documents).encode()).hexdigest()[:8]}"
         self.log(f"📂 Исходная папка: {self.raw_dir}")
         self.log(f"📂 Целевая папка: {self.knowledge_dir}")
         
-        # Шаг 1: Очистка
-        self.clean_knowledge_dir()
+        # Шаг 0: Создание структуры директорий (если двуязычный режим)
+        if self.bilingual and self.language_router:
+            self.language_router.ensure_structure()
+            self.log("✅ Двуязычная структура директорий готова")
+        
+        # Шаг 1: Очистка (НЕ очищаем языковые папки, только legacy)
+        # self.clean_knowledge_dir() - закомментировано для безопасности
         
         # Шаг 2: Обработка файлов
         countries = self.process_all_files()
@@ -425,8 +606,17 @@ version: "{hashlib.md5(str(self.documents).encode()).hexdigest()[:8]}"
         # Итоговая статистика
         self.log("")
         self.log("=" * 60)
-        self.log(f"✅ ЗАВЕРШЕНО: Создано {len(self.documents)} документов из {len(list(self.raw_dir.glob('*.pdf')))} презентаций")
+        self.log(f"✅ ЗАВЕРШЕНО: Создано {len(self.documents)} документов")
         self.log(f"📊 Категорий (стран): {len(countries)}")
+        
+        # Статистика по языкам
+        if self.bilingual and self.documents_by_lang:
+            self.log(f"🌍 Языковая статистика:")
+            for lang in ['rus', 'eng']:
+                count = len(self.documents_by_lang[lang])
+                if count > 0:
+                    self.log(f"   • {lang.upper()}: {count} документов")
+        
         self.log(f"📅 Дата сборки: {self.build_date}")
         self.log("=" * 60)
 

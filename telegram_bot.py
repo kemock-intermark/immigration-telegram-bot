@@ -41,9 +41,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Инициализация агента знаний
+# Инициализация агентов знаний (по одному для каждого языка)
 KNOWLEDGE_DIR = Path(__file__).parent / "knowledge"
-agent = KnowledgeAgent(str(KNOWLEDGE_DIR))
+
+# Проверяем наличие language_utils
+try:
+    from language_utils import LanguageDetector
+    LANGUAGE_UTILS_AVAILABLE = True
+except ImportError:
+    LANGUAGE_UTILS_AVAILABLE = False
+    print("⚠️  language_utils недоступен, двуязычность отключена")
+
+# Создаем агентов для каждого языка
+if LANGUAGE_UTILS_AVAILABLE:
+    agent_rus = KnowledgeAgent(str(KNOWLEDGE_DIR), lang="rus")
+    agent_eng = KnowledgeAgent(str(KNOWLEDGE_DIR), lang="eng")
+    language_detector = LanguageDetector()
+    print("🌍 Созданы агенты для RUS и ENG")
+else:
+    # Fallback - один агент для всех
+    agent_rus = KnowledgeAgent(str(KNOWLEDGE_DIR))
+    agent_eng = None
+    language_detector = None
+    print("📚 Создан общий агент (legacy режим)")
 
 # Инициализация логгера вопросов
 question_logger = get_logger(str(KNOWLEDGE_DIR))
@@ -196,16 +216,28 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /stats - статистика"""
     uptime = datetime.now() - usage_stats['started']
     
+    # Формируем информацию о базе знаний
+    if LANGUAGE_UTILS_AVAILABLE and agent_eng:
+        docs_info = f"""• Документов (RUS): <b>{len(agent_rus.documents)}</b>
+• Документов (ENG): <b>{len(agent_eng.documents)}</b>
+• <b>Всего: {len(agent_rus.documents) + len(agent_eng.documents)}</b>"""
+        version_info = f"<code>{agent_rus.kb_version or 'unknown'}</code>"
+        multilang_status = "✓ активен (RUS/ENG)"
+    else:
+        docs_info = f"• Документов: <b>{len(agent_rus.documents)}</b>"
+        version_info = f"<code>{agent_rus.kb_version or 'unknown'}</code>"
+        multilang_status = "⚠️  недоступен"
+    
     stats_message = f"""📊 <b>СТАТИСТИКА БОТА</b>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
 <b>📚 База знаний:</b>
 
-• Документов: <b>{len(agent.documents)}</b>
+{docs_info}
 • Стран и программ: <b>40+</b>
-• Версия базы: <code>{agent.kb_version or 'unknown'}</code>
-• Последнее обновление: <i>2025-10-14</i>
+• Версия базы: {version_info}
+• Последнее обновление: <i>2025-10-15</i>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -221,7 +253,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 • Поиск BM25: <b>~0.1 сек</b>
 • Генерация ответа: <b>~2 сек</b>
-• Многоязычный поиск: <b>✓ активен</b>
+• Многоязычный поиск: <b>{multilang_status}</b>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -272,11 +304,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action("typing")
     
     try:
+        # Выбираем правильный агент на основе языка запроса
+        if LANGUAGE_UTILS_AVAILABLE and detected_lang:
+            selected_agent = agent_rus if detected_lang == "rus" else agent_eng
+            logger.info(f"Selected agent: {detected_lang.upper()}")
+        else:
+            # Fallback - используем русский агент
+            selected_agent = agent_rus
+        
         # Поиск в базе знаний
-        results = agent.search_documents(question, limit=5)
+        results = selected_agent.search_documents(question, limit=5)
         
         # Формирование ответа
-        answer = agent.format_answer(question, results)
+        answer = selected_agent.format_answer(question, results)
         
         # Логируем вопрос с информацией о результате и языке
         answer_found = len(results) > 0 and "не знаю — нет в материалах" not in answer.lower()
