@@ -472,19 +472,12 @@ class KnowledgeAgentV3:
         return context
     
     def generate_llm_answer(self, query: str, context: str, sources: List[str]) -> Optional[str]:
-        """Генерировать ответ с помощью LLM с обработкой rate limits"""
-        if not self.groq_client:
-            return None
-        
-        import time
-        import requests
-        
-        max_retries = 3
-        base_delay = 2
-        
-        for attempt in range(max_retries):
-            try:
-                system_prompt = """Ты - опытный консультант по программам иммиграции и получения гражданства.
+        """Генерировать ответ с помощью мультипровайдерной LLM системы"""
+        try:
+            # Импортируем мультипровайдерную систему
+            from llm_providers import multi_llm
+            
+            system_prompt = """Ты - опытный консультант по программам иммиграции и получения гражданства.
 
 СТИЛЬ ОБЩЕНИЯ:
 - Отвечай как живой человек, без формальных "Введение" и "Заключение"
@@ -512,7 +505,7 @@ class KnowledgeAgentV3:
 5. Отвечай на том же языке, что и вопрос
 6. НЕ придумывай - только факты из контекста"""
 
-                user_prompt = f"""Вопрос клиента:
+            user_prompt = f"""Вопрос клиента:
 {query}
 
 Доступная информация:
@@ -520,51 +513,29 @@ class KnowledgeAgentV3:
 
 Ответь на вопрос клиента красиво и структурированно. Используй HTML-форматирование: <b>жирный текст</b>, <i>курсив</i>, списки с маркерами. Разбивай текст на короткие абзацы (используй \\n\\n для разделения)."""
 
-                response = self.groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    temperature=0.3,
-                    max_tokens=1500,
-                )
-                
-                llm_answer = response.choices[0].message.content
-                
-                final_answer = llm_answer + "\n\n---\n\n**Источники:**\n"
-                for source in sources:
-                    final_answer += f"- {source}\n"
-                
-                return final_answer
-                
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code == 429:
-                    # Rate limit exceeded
-                    delay = base_delay * (2 ** attempt)  # Exponential backoff
-                    print(f"⚠️  Rate limit exceeded (429). Попытка {attempt + 1}/{max_retries}, ожидание {delay} сек...")
-                    
-                    if attempt < max_retries - 1:
-                        time.sleep(delay)
-                        continue
-                    else:
-                        # Все попытки исчерпаны, возвращаем fallback ответ
-                        print(f"❌ Все попытки исчерпаны. Возвращаем fallback ответ.")
-                        return self._generate_fallback_answer(query, context, sources)
-                else:
-                    print(f"⚠️  HTTP ошибка LLM: {e}")
-                    return None
-                    
-            except Exception as e:
-                print(f"⚠️  Ошибка LLM: {e}")
-                if attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)
-                    print(f"🔄 Повторная попытка через {delay} сек...")
-                    time.sleep(delay)
-                else:
-                    return None
-        
-        return None
+            # Используем мультипровайдерную систему
+            response = multi_llm.generate_response(system_prompt, user_prompt, max_retries=3)
+            
+            if response.error:
+                print(f"❌ Все LLM провайдеры недоступны: {response.error}")
+                return self._generate_fallback_answer(query, context, sources)
+            
+            llm_answer = response.content
+            print(f"✅ Ответ получен от {response.provider} ({response.model})")
+            
+            final_answer = llm_answer + "\n\n---\n\n**Источники:**\n"
+            for source in sources:
+                final_answer += f"- {source}\n"
+            
+            return final_answer
+            
+        except ImportError:
+            # Fallback к старой системе если новый модуль недоступен
+            print("⚠️  llm_providers не найден, используем fallback")
+            return self._generate_fallback_answer(query, context, sources)
+        except Exception as e:
+            print(f"⚠️  Ошибка мультипровайдерной системы: {e}")
+            return self._generate_fallback_answer(query, context, sources)
     
     def _generate_fallback_answer(self, query: str, context: str, sources: List[str]) -> str:
         """Генерировать fallback ответ когда LLM недоступен"""

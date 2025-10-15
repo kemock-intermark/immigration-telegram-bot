@@ -228,6 +228,17 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         version_info = f"<code>{agent_rus.kb_version or 'unknown'}</code>"
         multilang_status = "⚠️  недоступен"
     
+    # Получаем статус LLM провайдеров
+    llm_status = "⚠️  недоступен"
+    try:
+        from llm_providers import get_llm_status
+        status = get_llm_status()
+        available_count = sum(1 for p in status.values() if p['configured'] and p['available'])
+        total_count = len(status)
+        llm_status = f"✓ {available_count}/{total_count} активен"
+    except ImportError:
+        llm_status = "⚠️  система недоступна"
+    
     stats_message = f"""📊 <b>СТАТИСТИКА БОТА</b>
 
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -254,13 +265,14 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Поиск BM25: <b>~0.1 сек</b>
 • Генерация ответа: <b>~2 сек</b>
 • Многоязычный поиск: <b>{multilang_status}</b>
+• LLM провайдеры: <b>{llm_status}</b>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
 <b>Готов ответить на ваши вопросы!</b> 🔍"""
-    
+
     await update.message.reply_text(
-        stats_message, 
+        stats_message,
         parse_mode='HTML',
         reply_markup=get_main_keyboard()
     )
@@ -401,6 +413,51 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def llm_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /llm_status - статус LLM провайдеров"""
+    try:
+        from llm_providers import get_llm_status
+        status = get_llm_status()
+        
+        status_message = "🤖 <b>СТАТУС LLM ПРОВАЙДЕРОВ</b>\n\n"
+        
+        for provider_name, provider_status in status.items():
+            configured = "✅" if provider_status['configured'] else "❌"
+            available = "🟢" if provider_status['available'] else "🔴"
+            retry_count = provider_status['retry_count']
+            last_error = provider_status['last_error']
+            
+            status_message += f"<b>{provider_name}</b>\n"
+            status_message += f"• Настроен: {configured}\n"
+            status_message += f"• Доступен: {available}\n"
+            status_message += f"• Попыток: <b>{retry_count}</b>\n"
+            
+            if last_error:
+                error_preview = last_error[:50] + "..." if len(last_error) > 50 else last_error
+                status_message += f"• Ошибка: <i>{error_preview}</i>\n"
+            
+            status_message += "\n"
+        
+        await update.message.reply_text(
+            status_message,
+            parse_mode='HTML',
+            reply_markup=get_main_keyboard()
+        )
+        
+    except ImportError:
+        await update.message.reply_text(
+            "⚠️ Система мониторинга LLM недоступна",
+            parse_mode='HTML',
+            reply_markup=get_main_keyboard()
+        )
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Ошибка получения статуса: {str(e)}",
+            parse_mode='HTML',
+            reply_markup=get_main_keyboard()
+        )
+
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка ошибок"""
     logger.error(f"Update {update} caused error {context.error}")
@@ -442,6 +499,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("llm_status", llm_status_command))
     
     # Обработчик обычных сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
