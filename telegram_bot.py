@@ -174,7 +174,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Telegram имеет лимит 4096 символов на сообщение
         # Разбиваем длинные ответы
         if len(answer) <= 4096:
-            await update.message.reply_text(answer, parse_mode='Markdown')
+            await update.message.reply_text(answer, parse_mode='HTML')
         else:
             # Разбиваем на части
             parts = []
@@ -194,13 +194,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for i, part in enumerate(parts, 1):
                 if i == 1:
                     await update.message.reply_text(
-                        f"{part}\n\n_[Часть {i}/{len(parts)}]_",
-                        parse_mode='Markdown'
+                        f"{part}\n\n<i>[Часть {i}/{len(parts)}]</i>",
+                        parse_mode='HTML'
                     )
                 else:
                     await update.message.reply_text(
-                        f"{part}\n\n_[Часть {i}/{len(parts)}]_",
-                        parse_mode='Markdown'
+                        f"{part}\n\n<i>[Часть {i}/{len(parts)}]</i>",
+                        parse_mode='HTML'
                     )
         
         logger.info(f"Answer sent to {user.username or user.id}")
