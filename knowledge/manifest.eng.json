@@ -1,0 +1,309 @@
+{
+  "version": "build_2025-10-15_12-25",
+  "created": "2025-10-15T12:25:50.193334",
+  "language": "eng",
+  "sources": [
+    {
+      "path": "raw/Intermark. Cyprus Permanent Residence by investment ENG.pdf",
+      "sha256": "6ce2a032e697005c",
+      "size": 691506,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Dominica Citizenship ENG.pdf",
+      "sha256": "fb3d6f90b7df1caa",
+      "size": 3077630,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Caribbean citizenship programs ENG.pdf",
+      "sha256": "4310c48d6806ae4a",
+      "size": 5381180,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Antigua and Barbuda Citizenship ENG.pdf",
+      "sha256": "299325d70aa45009",
+      "size": 4793176,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Canada. Start-Up visa ENG.pdf",
+      "sha256": "986d6db176ad8346",
+      "size": 5525129,
+      "mtime": 1759999980.0
+    },
+    {
+      "path": "raw/Intermark. EU Digital Nomad Visa (one page) ENG.pdf",
+      "sha256": "b67a56978645bd70",
+      "size": 61623,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Austria Residence Permit ENG.pdf",
+      "sha256": "4e22026bcb55c24c",
+      "size": 8396177,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Bulgaria. Residence Permit ENG.pdf",
+      "sha256": "78d20b66046ce49c",
+      "size": 8820079,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. France Residence Permit. Talent passport ENG.pdf",
+      "sha256": "0b55d7875accb2dc",
+      "size": 4894709,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. France Residence Permit. Starting a business ENG.pdf",
+      "sha256": "9b3ae257a8d212a0",
+      "size": 5128327,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Egyptian Citizenship ENG.pdf",
+      "sha256": "905124d89c0b93b5",
+      "size": 6047088,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. France. Visiteur visa (financial independence) ENG.pdf",
+      "sha256": "ad4fdf7663d15272",
+      "size": 4760686,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. France. Residence Permit (startup) ENG.pdf",
+      "sha256": "47f688273845eb99",
+      "size": 6540976,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. EU Financial Independence Programms ENG.pdf",
+      "sha256": "6a7c83a877ea64e8",
+      "size": 11183506,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Grenada Citizenship ENG.pdf",
+      "sha256": "a8d3ddbb2a4ce8ae",
+      "size": 5939032,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Hungary Residence Permit ENG.pdf",
+      "sha256": "443f38e0d28c8239",
+      "size": 6126878,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Germany RP, PR and citizenship ENG.pdf",
+      "sha256": "18d511fccf2d3e6f",
+      "size": 12222113,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Greece. Golden visa ENG.pdf",
+      "sha256": "1d0be59da2ebb2d4",
+      "size": 10487669,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Latvia Residence Permit andcitizenship ENG.pdf",
+      "sha256": "600bcfb88c7e5d68",
+      "size": 3883572,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Italy. Residence by financial independence ENG.pdf",
+      "sha256": "7991f9c714516fe6",
+      "size": 6542952,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Malta Permanent Residence ENG.pdf",
+      "sha256": "02e32dc877f1a586",
+      "size": 3253958,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Malta Citizenship ENG.pdf",
+      "sha256": "2e7c59d1c90fbaee",
+      "size": 5767919,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Montenegro. Residence permit for investment ENG.pdf",
+      "sha256": "062e8fa7c4faea5e",
+      "size": 6030982,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Malta. Global Residence Programme ENG.pdf",
+      "sha256": "53510ccf16677f77",
+      "size": 6951776,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Nauru Citizenship ENG.pdf",
+      "sha256": "c05a06dc3d63e969",
+      "size": 4718432,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Portugal HQA ENG.pdf",
+      "sha256": "07ee8c6e9d4123bb",
+      "size": 5339793,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Luxembourg Residence Permit ENG.pdf",
+      "sha256": "45fea6dc53bd9339",
+      "size": 12804601,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Paraguay. Residence permit & CItizenship. ENG.pdf",
+      "sha256": "316b2ac0b73df45e",
+      "size": 7317040,
+      "mtime": 1759999980.0
+    },
+    {
+      "path": "raw/Intermark. Portugal RP. Arish Capital Partners ENG.pdf",
+      "sha256": "01b83c44c3ff3dbe",
+      "size": 2626749,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Portugal RP. Bluetech III Fund ENG.pdf",
+      "sha256": "7b1b10ee8d727032",
+      "size": 2767909,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Portugal RP. Greytech Fund ENG.pdf",
+      "sha256": "cdfeb50931e973d8",
+      "size": 3032513,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Portugal RP. InVino Capital Fund ENG.pdf",
+      "sha256": "1b8c2f3a5ec028ab",
+      "size": 3672049,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Portugal RP. March VC Foundation ENG.pdf",
+      "sha256": "a8611ccafab9c2be",
+      "size": 2859165,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Portugal residence permit based on financial independence ENG.pdf",
+      "sha256": "783480f6c005ed4a",
+      "size": 3549598,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Portugal. Residence permit by investing in funds ENG.pdf",
+      "sha256": "381ffe7d5f71a918",
+      "size": 3613766,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Saint Kitts and Nevis citizenship ENG.pdf",
+      "sha256": "75eb2331ae312553",
+      "size": 5113465,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Saint Lucia citizenship ENG.pdf",
+      "sha256": "83dec93aa93c6e47",
+      "size": 4563984,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Sao Tome and Principe Citizenship ENG.pdf",
+      "sha256": "51234479639a6ffc",
+      "size": 5054577,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Serbia. Residence permit (Individual entrepreneurship) ENG.pdf",
+      "sha256": "c92982c7bee6f183",
+      "size": 3980150,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Residence permit of Italy. Company`s representative office opening ENG.pdf",
+      "sha256": "5479fab1c51b98c2",
+      "size": 13742783,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Spain Residence Permit (FIP) ENG.pdf",
+      "sha256": "73c5e18a919a77cb",
+      "size": 3583716,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Serbia. Residence permit ENG.pdf",
+      "sha256": "b3bd756fcd339905",
+      "size": 6708943,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Northen Cyprus ENG.pdf",
+      "sha256": "add406be1997bb12",
+      "size": 28627966,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. USA. Investor visas (EB5) ENG.pdf",
+      "sha256": "f1d0b55b1bc34d6c",
+      "size": 3947832,
+      "mtime": 1759999980.0
+    },
+    {
+      "path": "raw/Intermark. Slovenia residence permit and citizenship ENG.pdf",
+      "sha256": "2bc98cf8db7b78e4",
+      "size": 10807914,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. UK residence permit ENG.pdf",
+      "sha256": "679b6ba2799b8719",
+      "size": 6664124,
+      "mtime": 1759999980.0
+    },
+    {
+      "path": "raw/Intermark. Рortugal RP. Vida Hospitality Growth Fund ENG.pdf",
+      "sha256": "afc8a157ad3b27d3",
+      "size": 3219453,
+      "mtime": 1759999920.0
+    },
+    {
+      "path": "raw/Intermark. Vanuatu Passport ENG.pdf",
+      "sha256": "ac1e2ac58e545388",
+      "size": 8249031,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Immigration opportunities 2025 ENG.pdf",
+      "sha256": "a07dba14c67cefca",
+      "size": 48579091,
+      "mtime": 1759999860.0
+    },
+    {
+      "path": "raw/Intermark. Turkey Citizenship and Residence Permit 2025 ENG.pdf",
+      "sha256": "ce35b10ef3494bea",
+      "size": 23376507,
+      "mtime": 1759999980.0
+    }
+  ],
+  "total_documents": 50,
+  "total_sources": 50
+}

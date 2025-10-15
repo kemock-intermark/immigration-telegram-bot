@@ -400,8 +400,16 @@ def main():
     print("=" * 80)
     print("🤖 TELEGRAM-БОТ ДЛЯ БАЗЫ ЗНАНИЙ ПО ИММИГРАЦИИ")
     print("=" * 80)
-    print(f"📚 База знаний загружена: {len(agent.documents)} документов")
-    print(f"📦 Версия: {agent.kb_version or 'unknown'}")
+    # Показываем статистику по агентам
+    if LANGUAGE_UTILS_AVAILABLE and agent_eng:
+        total_docs = len(agent_rus.documents) + len(agent_eng.documents)
+        print(f"📚 База знаний загружена: {total_docs} документов")
+        print(f"   🇷🇺 RUS: {len(agent_rus.documents)} документов")
+        print(f"   🇬🇧 ENG: {len(agent_eng.documents)} документов")
+        print(f"📦 Версия: {agent_rus.kb_version or 'unknown'}")
+    else:
+        print(f"📚 База знаний загружена: {len(agent_rus.documents)} документов")
+        print(f"📦 Версия: {agent_rus.kb_version or 'unknown'}")
     print("🚀 Запуск бота...")
     print("=" * 80)
     
