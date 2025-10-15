@@ -18,7 +18,7 @@ from question_logger import get_logger
 
 # Для Telegram бота нужна библиотека python-telegram-bot
 try:
-    from telegram import Update
+    from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
     from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 except ImportError:
     print("❌ Ошибка: Не установлена библиотека python-telegram-bot")
@@ -46,6 +46,15 @@ usage_stats = {
     'users': set(),
     'started': datetime.now()
 }
+
+# Создаем клавиатуру с кнопками команд
+def get_main_keyboard():
+    """Возвращает основную клавиатуру с кнопками команд"""
+    keyboard = [
+        [KeyboardButton("❓ Справка"), KeyboardButton("📊 Статистика")],
+        [KeyboardButton("🔄 Перезапуск")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -100,7 +109,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 <b>Готов ответить на ваш первый вопрос!</b> 👇"""
     
-    await update.message.reply_text(welcome_message, parse_mode='HTML')
+    await update.message.reply_text(
+        welcome_message, 
+        parse_mode='HTML',
+        reply_markup=get_main_keyboard()
+    )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,7 +177,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 <b>Готов помочь! Задайте ваш вопрос 👇</b>"""
     
-    await update.message.reply_text(help_message, parse_mode='HTML')
+    await update.message.reply_text(
+        help_message, 
+        parse_mode='HTML',
+        reply_markup=get_main_keyboard()
+    )
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -202,13 +219,31 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 <b>Готов ответить на ваши вопросы!</b> 🔍"""
     
-    await update.message.reply_text(stats_message, parse_mode='HTML')
+    await update.message.reply_text(
+        stats_message, 
+        parse_mode='HTML',
+        reply_markup=get_main_keyboard()
+    )
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка обычных сообщений (вопросов)"""
+    """Обработка обычных сообщений (вопросов и нажатий на кнопки)"""
     user = update.effective_user
-    question = update.message.text
+    text = update.message.text
+    
+    # Проверяем, не нажата ли кнопка команды
+    if text == "❓ Справка":
+        await help_command(update, context)
+        return
+    elif text == "📊 Статистика":
+        await stats_command(update, context)
+        return
+    elif text == "🔄 Перезапуск":
+        await start_command(update, context)
+        return
+    
+    # Если это не кнопка, обрабатываем как вопрос
+    question = text
     
     # Обновляем статистику
     usage_stats['total_queries'] += 1
@@ -239,7 +274,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Telegram имеет лимит 4096 символов на сообщение
         # Разбиваем длинные ответы
         if len(answer) <= 4096:
-            await update.message.reply_text(answer, parse_mode='HTML')
+            await update.message.reply_text(
+                answer, 
+                parse_mode='HTML',
+                reply_markup=get_main_keyboard()
+            )
         else:
             # Разбиваем на части
             parts = []
@@ -255,17 +294,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if current_part:
                 parts.append(current_part)
             
-            # Отправляем части
+            # Отправляем части (клавиатура только на последней части)
             for i, part in enumerate(parts, 1):
+                is_last_part = (i == len(parts))
                 if i == 1:
                     await update.message.reply_text(
                         f"{part}\n\n<i>[Часть {i}/{len(parts)}]</i>",
-                        parse_mode='HTML'
+                        parse_mode='HTML',
+                        reply_markup=get_main_keyboard() if is_last_part else None
                     )
                 else:
                     await update.message.reply_text(
                         f"{part}\n\n<i>[Часть {i}/{len(parts)}]</i>",
-                        parse_mode='HTML'
+                        parse_mode='HTML',
+                        reply_markup=get_main_keyboard() if is_last_part else None
                     )
         
         logger.info(f"Answer sent to {user.username or user.id}")
@@ -274,7 +316,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error processing question: {e}")
         await update.message.reply_text(
             "😔 Извините, произошла ошибка при обработке вашего вопроса.\n"
-            "Попробуйте переформулировать или задайте другой вопрос."
+            "Попробуйте переформулировать или задайте другой вопрос.",
+            reply_markup=get_main_keyboard()
         )
 
 
