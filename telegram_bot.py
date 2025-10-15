@@ -233,12 +233,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Проверяем, не нажата ли кнопка команды
     if text == "❓ Справка":
+        logger.info(f"Button pressed: Справка by {user.username or user.id}")
         await help_command(update, context)
         return
     elif text == "📊 Статистика":
+        logger.info(f"Button pressed: Статистика by {user.username or user.id}")
         await stats_command(update, context)
         return
     elif text == "🔄 Перезапуск":
+        logger.info(f"Button pressed: Перезапуск by {user.username or user.id}")
         await start_command(update, context)
         return
     
